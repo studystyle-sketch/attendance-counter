@@ -329,10 +329,8 @@ function render(data, filename) {
 
     sorted.forEach(s => {
       totalCount += s.count;
-      const cntHTML = s.count > 1
-        ? `<span class="s-count">${s.count}</span>`
-        : `<span class="s-count-empty"></span>`;
-      const cntT   = s.count > 1 ? ` ${s.count}` : '';
+      const cntHTML = `<span class="s-count">${s.count}</span>`;
+      const cntT   = ` ${s.count}`;
       const chipsHTML = s.dates.map(d => `<span class="date-chip">${d}</span>`).join('');
       const datesT = s.dates.join('・');
 
