@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>請求書作成ツール</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f5f5f3; --surface: #fff; --surface-2: #f0eeea;
+  --border: #e4e2db; --border-strong: #c8c5bc;
+  --text-primary: #1a1a18; --text-secondary: #6b6b66; --text-muted: #a8a8a3;
+  --accent: #2563eb; --accent-bg: #eff6ff; --accent-text: #1d4ed8;
+  --red: #dc2626; --red-bg: #fef2f2; --red-border: #fecaca;
+  --yellow-bg: #fefce8; --yellow-border: #fde68a;
+  --green: #16a34a; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+  --radius: 8px;
+  --cols: 1fr 38px 72px 72px 60px 72px 76px 60px 76px;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; padding: 2rem 1rem; }
+.container { max-width: 1060px; margin: 0 auto; }
+header { margin-bottom: 1.5rem; }
+header h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+header p { font-size: 13px; color: var(--text-secondary); }
+
+/* Settings */
+.settings-bar {
+  background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px;
+  padding: 1rem 1.5rem; margin-bottom: 1.25rem;
+  display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+}
+.sg { display: flex; align-items: center; gap: 6px; }
+.sg label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.sg select, .sg input[type="number"] {
+  font-family: inherit; font-size: 13px; font-weight: 500;
+  padding: 4px 8px; border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius); background: var(--surface); color: var(--text-primary);
+}
+.sg input[type="number"] { width: 80px; text-align: right; }
+.shokeihi-val { font-size: 13px; font-weight: 600; color: var(--accent-text); padding: 3px 8px; background: var(--accent-bg); border-radius: 4px; }
+.hint { font-size: 11px; color: var(--text-muted); }
+.vsep { width: 1px; height: 22px; background: var(--border); }
+
+/* Upload */
+.upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+.drop-zone {
+  border: 1.5px dashed var(--border-strong); border-radius: 12px;
+  padding: 1.25rem; text-align: center; cursor: pointer;
+  background: var(--surface); transition: background .15s, border-color .15s; position: relative;
+}
+.drop-zone.over { background: var(--accent-bg); border-color: var(--accent); }
+.drop-zone.loaded { border-color: var(--green); border-style: solid; background: var(--green-bg); cursor: default; }
+.dz-tag { font-size: 11px; font-weight: 600; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 6px; }
+.drop-zone i { font-size: 26px; color: var(--text-muted); display: block; margin-bottom: 6px; }
+.drop-zone.loaded i { color: var(--green); }
+.dz-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.dz-link { color: var(--accent-text); text-decoration: underline; }
+.dz-loaded-name { font-size: 13px; font-weight: 600; color: var(--green); }
+.dz-loaded-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.dz-clear { position: absolute; top: 8px; right: 8px; font-size: 11px; color: var(--text-muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; border: 0.5px solid var(--border); background: var(--surface); }
+.dz-clear:hover { color: var(--red); border-color: var(--red-border); }
+input[type="file"] { display: none; }
+
+/* Controls */
+#controls { display: none; align-items: center; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+button {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 13px; font-family: inherit; padding: 6px 12px;
+  border-radius: var(--radius); border: 0.5px solid var(--border-strong);
+  background: var(--surface); color: var(--text-primary); cursor: pointer;
+  transition: background .12s; white-space: nowrap;
+}
+button:hover { background: var(--surface-2); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary:hover { background: #1d4ed8; }
+
+/* Summary */
+#summary { display: none; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.stat { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: .5rem .875rem; min-width: 110px; }
+.stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.stat-val { font-size: 18px; font-weight: 600; }
+.stat-val.red { color: var(--red); }
+
+/* Error */
+.error-msg { background: var(--red-bg); border: 0.5px solid var(--red-border); color: #991b1b; border-radius: var(--radius); padding: .75rem 1rem; font-size: 13px; margin-bottom: 1rem; }
+
+/* Table */
+#result { display: none; background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; overflow-x: auto; }
+
+.tbl-header {
+  display: grid; grid-template-columns: var(--cols); gap: 6px;
+  padding: 6px 16px; background: var(--surface-2); border-bottom: 0.5px solid var(--border);
+  font-size: 10px; color: var(--text-muted); font-weight: 600; letter-spacing: .04em; min-width: 800px;
+}
+.th-r { text-align: right; }
+
+.grade-block { border-bottom: 0.5px solid var(--border); }
+.grade-block:last-child { border-bottom: none; }
+.grade-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 16px; background: var(--surface-2); border-bottom: 0.5px solid var(--border);
+}
+.grade-lbl { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.grade-cnt { font-size: 11px; color: var(--text-muted); }
+
+.brow {
+  display: grid; grid-template-columns: var(--cols); align-items: center;
+  gap: 6px; padding: 5px 16px; border-bottom: 0.5px solid var(--border); min-width: 800px;
+}
+.brow:last-child { border-bottom: none; }
+.brow:hover { background: #fafaf9; }
+.brow.sib { background: var(--red-bg); }
+.brow.sib:hover { background: #fde8e8; }
+.brow.twin { background: var(--yellow-bg); }
+.brow.twin:hover { background: #fef3c7; }
+
+.c-name { font-size: 13px; display: flex; align-items: center; gap: 4px; }
+.c-num { font-size: 12px; text-align: right; color: var(--text-secondary); }
+.c-rate input {
+  width: 100%; font-family: inherit; font-size: 12px; font-weight: 500;
+  text-align: right; padding: 2px 5px;
+  border: 0.5px solid var(--border-strong); border-radius: 4px;
+  background: #fff; color: var(--text-primary);
+}
+.c-rate input:focus { outline: 1.5px solid var(--accent); border-color: var(--accent); }
+.c-amt { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.c-disc { font-size: 12px; text-align: right; color: var(--red); font-variant-numeric: tabular-nums; }
+.c-total { font-size: 12px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.badge { font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 600; white-space: nowrap; }
+.b-sib { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+.b-twin { background: var(--yellow-bg); color: #92400e; border: 0.5px solid var(--yellow-border); }
+
+#toast {
+  position: fixed; bottom: 1.5rem; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--text-primary); color: #fff; font-size: 13px;
+  padding: 8px 16px; border-radius: 20px; opacity: 0;
+  transition: opacity .2s, transform .2s; pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media print {
+  @page { size: landscape; margin: 1cm; }
+  body { background: #fff; padding: 0; }
+  header p, .settings-bar, .upload-row, #controls, #summary, #error-box, #toast { display: none !important; }
+  header { margin-bottom: 0.5rem; }
+  #result { display: block !important; border: none; border-radius: 0; overflow: visible; }
+  .grade-head { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tbl-header { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .brow:hover { background: inherit !important; }
+  .brow.sib { background: #fff0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .brow.twin { background: #fefce8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .grade-block { page-break-inside: avoid; }
+  .c-rate input { border: none; background: transparent; pointer-events: none; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>請求書作成ツール</h1>
+    <p>生徒情報CSVと出席CSVを読み込んで請求一覧を自動生成します</p>
+  </header>
+
+  <div class="settings-bar">
+    <div class="sg">
+      <label>対象月</label>
+      <select id="target-month" onchange="onSettingChange()">
+        <option value="1">1月</option><option value="2">2月</option>
+        <option value="3">3月</option><option value="4">4月</option>
+        <option value="5">5月</option><option value="6">6月</option>
+        <option value="7">7月</option><option value="8">8月</option>
+        <option value="9">9月</option><option value="10">10月</option>
+        <option value="11">11月</option><option value="12">12月</option>
+      </select>
+    </div>
+    <div class="sg">
+      <label>諸経費</label>
+      <span class="shokeihi-val" id="shokeihi-val">¥2,000</span>
+      <span class="hint">（12〜2月は¥3,000）</span>
+    </div>
+    <div class="vsep"></div>
+    <div class="sg">
+      <label>教室利用料</label>
+      <input type="number" id="fee-kyoshitsu" value="3000" oninput="onSettingChange()">
+      <span class="hint">円</span>
+    </div>
+    <div class="sg">
+      <label>システム管理費</label>
+      <input type="number" id="fee-system" value="500" oninput="onSettingChange()">
+      <span class="hint">円</span>
+    </div>
+    <div class="vsep"></div>
+    <div class="sg">
+      <label>兄弟割引</label>
+      <input type="number" id="discount-amt" value="0" oninput="onSettingChange()">
+      <span class="hint">円</span>
+    </div>
+  </div>
+
+  <div class="upload-row">
+    <div class="drop-zone" id="dz-student" onclick="document.getElementById('fi-student').click()">
+      <div class="dz-tag">① 生徒情報CSV</div>
+      <i class="ti ti-users" id="ico-student"></i>
+      <div class="dz-body" id="txt-student">ここにドロップ<br><span class="dz-link">またはクリックして選択</span></div>
+      <span class="dz-clear" id="clr-student" style="display:none" onclick="event.stopPropagation();clearFile('student')">×</span>
+    </div>
+    <div class="drop-zone" id="dz-attendance" onclick="document.getElementById('fi-attendance').click()">
+      <div class="dz-tag">② 出席CSV</div>
+      <i class="ti ti-calendar-check" id="ico-attendance"></i>
+      <div class="dz-body" id="txt-attendance">ここにドロップ<br><span class="dz-link">またはクリックして選択</span></div>
+      <span class="dz-clear" id="clr-attendance" style="display:none" onclick="event.stopPropagation();clearFile('attendance')">×</span>
+    </div>
+  </div>
+  <input type="file" id="fi-student" accept=".csv,.tsv,.txt" onchange="handleFile(this.files[0],'student')">
+  <input type="file" id="fi-attendance" accept=".csv,.tsv,.txt" onchange="handleFile(this.files[0],'attendance')">
+
+  <div id="error-box"></div>
+
+  <div id="controls">
+    <button onclick="resetAll()"><i class="ti ti-refresh"></i> リセット</button>
+    <button onclick="window.print()"><i class="ti ti-printer"></i> 印刷</button>
+    <button class="primary" onclick="copyText()"><i class="ti ti-copy"></i> テキストをコピー</button>
+  </div>
+
+  <div id="summary">
+    <div class="stat"><div class="stat-label">生徒数</div><div class="stat-val" id="st-students">0名</div></div>
+    <div class="stat"><div class="stat-label">授業料合計</div><div class="stat-val" id="st-lessons">¥0</div></div>
+    <div class="stat"><div class="stat-label">固定費合計</div><div class="stat-val" id="st-fixed">¥0</div></div>
+    <div class="stat"><div class="stat-label">割引合計</div><div class="stat-val red" id="st-discount">-¥0</div></div>
+    <div class="stat"><div class="stat-label">請求総額</div><div class="stat-val" id="st-total">¥0</div></div>
+  </div>
+
+  <div id="result"></div>
+</div>
+<div id="toast">コピーしました</div>
+
+<script>
+const GRADE_ORDER = ['小1','小2','小3','小4','小5','小6','中1','中2','中3','高1','高2','高3'];
+const RATES_KEY = 'billing_rates_v1';
+
+let students = null;    // id -> {id, name, grade, sibling}
+let attendance = null;  // id -> {count, dates}
+let sibTargets = new Set();
+let twinTargets = new Set();
+let copyBuf = '';
+
+// ── init month ──
+(function() {
+  const m = new Date().getMonth() + 1;
+  document.getElementById('target-month').value = m;
+  updateShokeihi();
+})();
+
+function gradeKey(g) { const i = GRADE_ORDER.indexOf(g); return i >= 0 ? i : 99; }
+function fmt(n) { return '¥' + n.toLocaleString('ja-JP'); }
+function getRates() { return JSON.parse(localStorage.getItem(RATES_KEY) || '{}'); }
+function saveRate(id, v) {
+  const r = getRates();
+  if (v > 0) r[id] = v; else delete r[id];
+  localStorage.setItem(RATES_KEY, JSON.stringify(r));
+}
+
+// ── CSV parser (handles quoted fields w/ embedded newlines) ──
+function parseCSVFull(text) {
+  const rows = []; let row = [], field = '', inQ = false, i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i += 2; continue; } inQ = false; i++; continue; }
+      if (c !== '\r') field += c; i++;
+    } else {
+      if (c === '"')  { inQ = true; i++; continue; }
+      if (c === ',' || c === '\t') { row.push(field.trim()); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') {
+        row.push(field.trim()); field = '';
+        if (row.some(f => f)) rows.push(row);
+        row = []; i++; continue;
+      }
+      field += c; i++;
+    }
+  }
+  row.push(field.trim());
+  if (row.some(f => f)) rows.push(row);
+  return rows;
+}
+
+// ── file type detection ──
+function detectType(headers) {
+  if (headers.includes('現在の学年')) return 'student';
+  if (headers.includes('日付') && headers.includes('欠席')) return 'attendance';
+  return null;
+}
+
+// ── parsers ──
+function parseStudent(text) {
+  const rows = parseCSVFull(text);
+  if (rows.length < 2) return null;
+  const h = rows[0];
+  const iId = h.indexOf('生徒番号'), iName = h.indexOf('名前'),
+        iGrade = h.indexOf('現在の学年'), iStatus = h.indexOf('ステータス'),
+        iSib = h.indexOf('兄弟姉妹');
+  if (iId < 0 || iName < 0 || iGrade < 0) return null;
+  const result = {};
+  for (let i = 1; i < rows.length; i++) {
+    const c = rows[i];
+    const id = c[iId]||'', name = c[iName]||'', grade = c[iGrade]||'';
+    const status = iStatus >= 0 ? c[iStatus]||'' : '在籍';
+    const sib    = iSib    >= 0 ? c[iSib]   ||'' : '';
+    if (!id || !name || !grade) continue;
+    if (status !== '在籍') continue;
+    result[id] = { id, name, grade, sibling: sib };
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+function parseAttendance(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return null;
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+  const h = lines[0].split(sep).map(s => s.trim());
+  const iId = h.indexOf('生徒番号'), iDate = h.indexOf('日付'), iAbs = h.indexOf('欠席');
+  if (iId < 0) return null;
+  const result = {};
+  for (let i = 1; i < lines.length; i++) {
+    const c = lines[i].split(sep);
+    const id  = (c[iId] ||'').trim();
+    const abs = iAbs  >= 0 ? (c[iAbs] ||'').trim() : '';
+    const raw = iDate >= 0 ? (c[iDate]||'').trim() : '';
+    const date = raw.replace(/^\d{4}\//, '');
+    if (!id || id === '0') continue;
+    if (abs === '1') continue;
+    if (!result[id]) result[id] = { count: 0, dates: [] };
+    result[id].count++;
+    if (date && !result[id].dates.includes(date)) result[id].dates.push(date);
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+// ── sibling detection ──
+function detectSiblings(sts) {
+  const nameMap = {};
+  Object.values(sts).forEach(s => { nameMap[s.name] = s; });
+  const targets = new Set(), twins = new Set(), seen = new Set();
+  Object.values(sts).forEach(s => {
+    if (!s.sibling || seen.has(s.id)) return;
+    const sib = nameMap[s.sibling];
+    if (!sib) return;
+    seen.add(s.id); seen.add(sib.id);
+    const a = gradeKey(s.grade), b = gradeKey(sib.grade);
+    if (a < b)      targets.add(s.id);
+    else if (b < a) targets.add(sib.id);
+    else { twins.add(s.id); twins.add(sib.id); }
+  });
+  return { targets, twins };
+}
+
+// ── fee getters ──
+function getMonth()    { return parseInt(document.getElementById('target-month').value, 10); }
+function getShokeihi() { return [12,1,2].includes(getMonth()) ? 3000 : 2000; }
+function getKyoshitsu(){ return parseInt(document.getElementById('fee-kyoshitsu').value, 10) || 0; }
+function getSysFee()   { return parseInt(document.getElementById('fee-system').value,    10) || 0; }
+function getDiscount() { return parseInt(document.getElementById('discount-amt').value,  10) || 0; }
+
+function calcBilling(s, rate, count) {
+  const jugyoryo = rate * count;
+  const shokeihi = getShokeihi();
+  const kyoshitsu = getKyoshitsu();
+  const sysf = getSysFee();
+  const disc = sibTargets.has(s.id) ? getDiscount() : 0;
+  const total = jugyoryo + shokeihi + kyoshitsu + sysf - disc;
+  return { jugyoryo, shokeihi, kyoshitsu, sysf, disc, total };
+}
+
+// ── render ──
+function render() {
+  if (!students || !attendance) return;
+
+  const rates = getRates();
+  const byGrade = {};
+  Object.values(students).forEach(s => {
+    if (!byGrade[s.grade]) byGrade[s.grade] = [];
+    byGrade[s.grade].push(s);
+  });
+  const grades = Object.keys(byGrade).sort((a, b) => gradeKey(a) - gradeKey(b));
+
+  let html = `<div class="tbl-header">
+    <div>氏名</div><div class="th-r">回数</div><div class="th-r">単価</div>
+    <div class="th-r">授業料</div><div class="th-r">諸経費</div>
+    <div class="th-r">教室利用料</div><div class="th-r">システム管理費</div>
+    <div class="th-r">兄弟割引</div><div class="th-r">合計</div>
+  </div>`;
+
+  let totStudents = 0, totLesson = 0, totFixed = 0, totDisc = 0, totAll = 0;
+  let copyLines = '';
+
+  grades.forEach(g => {
+    const list = byGrade[g].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    html += `<div class="grade-block"><div class="grade-head"><span class="grade-lbl">${g}</span><span class="grade-cnt">${list.length}名</span></div>`;
+    copyLines += `【${g}】\n`;
+
+    list.forEach(s => {
+      totStudents++;
+      const att   = attendance[s.id] || { count: 0, dates: [] };
+      const rate  = rates[s.id] || 0;
+      const b     = calcBilling(s, rate, att.count);
+      const isSib = sibTargets.has(s.id);
+      const isTwin = twinTargets.has(s.id);
+      const rowCls = isTwin ? 'brow twin' : isSib ? 'brow sib' : 'brow';
+
+      totLesson += b.jugyoryo;
+      totFixed  += b.shokeihi + b.kyoshitsu + b.sysf;
+      totDisc   += b.disc;
+      totAll    += b.total;
+
+      let badge = '';
+      if (isSib)  badge = `<span class="badge b-sib">兄弟割引</span>`;
+      if (isTwin) badge = `<span class="badge b-twin">要確認</span>`;
+
+      html += `<div class="${rowCls}" data-id="${s.id}">
+        <div class="c-name">${s.name}${badge}</div>
+        <div class="c-num">${att.count}</div>
+        <div class="c-rate"><input type="number" min="0" step="100" value="${rate||''}" placeholder="0" data-id="${s.id}" onchange="onRateChange(this)"></div>
+        <div class="c-amt" data-col="jugyoryo">${fmt(b.jugyoryo)}</div>
+        <div class="c-amt" data-col="shokeihi">${fmt(b.shokeihi)}</div>
+        <div class="c-amt" data-col="kyoshitsu">${fmt(b.kyoshitsu)}</div>
+        <div class="c-amt" data-col="sysf">${fmt(b.sysf)}</div>
+        <div class="c-disc" data-col="disc">${b.disc ? '-'+fmt(b.disc) : '—'}</div>
+        <div class="c-total" data-col="total">${fmt(b.total)}</div>
+      </div>`;
+
+      copyLines += `${s.name}\t${att.count}回\t¥${rate.toLocaleString()}/回\t${fmt(b.jugyoryo)}\t${fmt(b.shokeihi)}\t${fmt(b.kyoshitsu)}\t${fmt(b.sysf)}\t${b.disc ? '-'+fmt(b.disc) : '—'}\t${fmt(b.total)}\n`;
+    });
+
+    html += `</div>`;
+    copyLines += '\n';
+  });
+
+  copyBuf = copyLines.trim();
+  document.getElementById('result').innerHTML = html;
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('controls').style.display = 'flex';
+  document.getElementById('summary').style.display = 'flex';
+  updateSummary(totStudents, totLesson, totFixed, totDisc, totAll);
+}
+
+function updateSummary(s, l, f, d, t) {
+  document.getElementById('st-students').textContent = s + '名';
+  document.getElementById('st-lessons').textContent  = fmt(l);
+  document.getElementById('st-fixed').textContent    = fmt(f);
+  document.getElementById('st-discount').textContent = '-' + fmt(d);
+  document.getElementById('st-total').textContent    = fmt(t);
+}
+
+// ── rate change (inline update without full re-render) ──
+function onRateChange(input) {
+  const id   = input.dataset.id;
+  const rate = parseInt(input.value, 10) || 0;
+  saveRate(id, rate);
+
+  const s   = students[id];
+  const att = (attendance && attendance[id]) || { count: 0 };
+  const b   = calcBilling(s, rate, att.count);
+
+  const row = input.closest('.brow');
+  row.querySelector('[data-col="jugyoryo"]').textContent = fmt(b.jugyoryo);
+  row.querySelector('[data-col="shokeihi"]').textContent = fmt(b.shokeihi);
+  row.querySelector('[data-col="kyoshitsu"]').textContent = fmt(b.kyoshitsu);
+  row.querySelector('[data-col="sysf"]').textContent = fmt(b.sysf);
+  row.querySelector('[data-col="disc"]').textContent = b.disc ? '-'+fmt(b.disc) : '—';
+  row.querySelector('[data-col="total"]').textContent = fmt(b.total);
+
+  recalcSummary();
+}
+
+function recalcSummary() {
+  const rates = getRates();
+  let s = 0, l = 0, f = 0, d = 0, t = 0;
+  Object.values(students).forEach(st => {
+    s++;
+    const att = (attendance && attendance[st.id]) || { count: 0 };
+    const rate = rates[st.id] || 0;
+    const b = calcBilling(st, rate, att.count);
+    l += b.jugyoryo; f += b.shokeihi + b.kyoshitsu + b.sysf; d += b.disc; t += b.total;
+  });
+  updateSummary(s, l, f, d, t);
+}
+
+function onSettingChange() {
+  updateShokeihi();
+  if (students && attendance) render();
+}
+
+function updateShokeihi() {
+  document.getElementById('shokeihi-val').textContent = fmt(getShokeihi());
+}
+
+// ── file handling ──
+function handleFile(file, zone) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    // detect type from headers
+    const firstLine = text.split(/\r?\n/)[0];
+    const sep = firstLine.includes('\t') ? '\t' : ',';
+    const headers = firstLine.split(sep).map(h => h.trim().replace(/^"|"$/g,''));
+    const detected = detectType(headers);
+
+    const target = detected === 'student' ? 'student' : detected === 'attendance' ? 'attendance' : zone;
+
+    if (target === 'student') {
+      const data = parseStudent(text);
+      if (!data) { showError('生徒情報CSVのヘッダーが認識できません。'); return; }
+      students = data;
+      const { targets, twins } = detectSiblings(students);
+      sibTargets = targets; twinTargets = twins;
+      setDropLoaded('student', file.name, Object.keys(data).length + '名を読み込みました');
+    } else {
+      const data = parseAttendance(text);
+      if (!data) { showError('出席CSVのヘッダーが認識できません。生徒番号・日付・欠席 の列が必要です。'); return; }
+      attendance = data;
+      setDropLoaded('attendance', file.name, Object.keys(data).length + '名分の出席データを読み込みました');
+    }
+
+    if (students && attendance) render();
+  };
+  reader.onerror = () => showError('ファイルの読み込みに失敗しました。');
+  reader.readAsText(file, 'UTF-8');
+}
+
+function setDropLoaded(zone, name, sub) {
+  const dz = document.getElementById('dz-' + zone);
+  dz.classList.add('loaded');
+  document.getElementById('ico-' + zone).className = 'ti ti-circle-check';
+  document.getElementById('txt-' + zone).innerHTML = `<div class="dz-loaded-name">${name}</div><div class="dz-loaded-sub">${sub}</div>`;
+  document.getElementById('clr-' + zone).style.display = 'block';
+  showError('');
+}
+
+function clearFile(zone) {
+  if (zone === 'student')     { students = null; sibTargets = new Set(); twinTargets = new Set(); }
+  if (zone === 'attendance')  { attendance = null; }
+  document.getElementById('dz-' + zone).classList.remove('loaded');
+  document.getElementById('ico-' + zone).className = zone === 'student' ? 'ti ti-users' : 'ti ti-calendar-check';
+  document.getElementById('txt-' + zone).innerHTML = `ここにドロップ<br><span class="dz-link">またはクリックして選択</span>`;
+  document.getElementById('clr-' + zone).style.display = 'none';
+  document.getElementById('fi-' + zone).value = '';
+  if (!(students && attendance)) {
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('controls').style.display = 'none';
+    document.getElementById('summary').style.display = 'none';
+  }
+}
+
+function resetAll() {
+  clearFile('student'); clearFile('attendance');
+  document.getElementById('result').innerHTML = '';
+  showError(''); copyBuf = '';
+}
+
+function showError(msg) {
+  document.getElementById('error-box').innerHTML = msg
+    ? `<div class="error-msg"><i class="ti ti-alert-circle"></i> ${msg}</div>` : '';
+}
+
+function copyText() {
+  navigator.clipboard.writeText(copyBuf).then(() => {
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  });
+}
+
+// ── drag & drop ──
+['student','attendance'].forEach(zone => {
+  const dz = document.getElementById('dz-' + zone);
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0], zone);
+  });
+});
+</script>
+</body>
+</html>
