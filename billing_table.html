@@ -61,10 +61,8 @@ header p { font-size: 13px; color: var(--text-secondary); }
 }
 .drop-zone.over { background: var(--accent-bg); border-color: var(--accent); }
 .drop-zone.loaded { border-color: var(--green); border-style: solid; background: var(--green-bg); cursor: default; }
-.dz-tag { font-size: 11px; font-weight: 600; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 6px; }
-.drop-zone i { font-size: 26px; color: var(--text-muted); display: block; margin-bottom: 6px; }
-.drop-zone.loaded i { color: var(--green); }
-.dz-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.dz-tag { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+.dz-body { font-size: 14px; color: var(--text-secondary); line-height: 1.8; }
 .dz-link { color: var(--accent-text); text-decoration: underline; }
 .dz-loaded-name { font-size: 13px; font-weight: 600; color: var(--green); }
 .dz-loaded-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
@@ -235,13 +233,11 @@ button.primary:hover { background: #1d4ed8; }
   <div class="upload-row">
     <div class="drop-zone" id="dz-student" onclick="document.getElementById('fi-student').click()">
       <div class="dz-tag">① 生徒情報CSV</div>
-      <i class="ti ti-users" id="ico-student"></i>
       <div class="dz-body" id="txt-student">ここにドロップ<br><span class="dz-link">またはクリックして選択</span></div>
       <span class="dz-clear" id="clr-student" style="display:none" onclick="event.stopPropagation();clearFile('student')">×</span>
     </div>
     <div class="drop-zone" id="dz-attendance" onclick="document.getElementById('fi-attendance').click()">
       <div class="dz-tag">② 出席CSV</div>
-      <i class="ti ti-calendar-check" id="ico-attendance"></i>
       <div class="dz-body" id="txt-attendance">ここにドロップ<br><span class="dz-link">またはクリックして選択</span></div>
       <span class="dz-clear" id="clr-attendance" style="display:none" onclick="event.stopPropagation();clearFile('attendance')">×</span>
     </div>
@@ -595,7 +591,6 @@ function handleFile(file, zone) {
 function setDropLoaded(zone, name, sub) {
   const dz = document.getElementById('dz-' + zone);
   dz.classList.add('loaded');
-  document.getElementById('ico-' + zone).className = 'ti ti-circle-check';
   document.getElementById('txt-' + zone).innerHTML = `<div class="dz-loaded-name">${name}</div><div class="dz-loaded-sub">${sub}</div>`;
   document.getElementById('clr-' + zone).style.display = 'block';
   showError('');
@@ -605,7 +600,6 @@ function clearFile(zone) {
   if (zone === 'student')     { students = null; sibTargets = new Set(); twinTargets = new Set(); }
   if (zone === 'attendance')  { attendance = null; }
   document.getElementById('dz-' + zone).classList.remove('loaded');
-  document.getElementById('ico-' + zone).className = zone === 'student' ? 'ti ti-users' : 'ti ti-calendar-check';
   document.getElementById('txt-' + zone).innerHTML = `ここにドロップ<br><span class="dz-link">またはクリックして選択</span>`;
   document.getElementById('clr-' + zone).style.display = 'none';
   document.getElementById('fi-' + zone).value = '';
