@@ -268,6 +268,7 @@ button.primary:hover { background: #1d4ed8; }
 
   <div id="controls">
     <button onclick="resetAll()"><i class="ti ti-refresh"></i> リセット</button>
+    <button onclick="resetRatesToDefault()"><i class="ti ti-rotate"></i> 単価をデフォルトに戻す</button>
     <button onclick="window.print()"><i class="ti ti-printer"></i> 印刷</button>
     <button class="primary" onclick="copyText()"><i class="ti ti-copy"></i> テキストをコピー</button>
   </div>
@@ -656,6 +657,13 @@ function resetAll() {
   clearFile('student'); clearFile('attendance');
   document.getElementById('result').innerHTML = '';
   showError(''); copyBuf = '';
+}
+
+// 手動設定した単価をすべて消して学年別デフォルトに戻す（特別割引は保持）
+function resetRatesToDefault() {
+  if (!confirm('手動で設定した単価をすべて消して、学年別のデフォルト単価に戻します。よろしいですか？（特別割引は保持されます）')) return;
+  localStorage.removeItem(RATES_KEY);
+  if (students && attendance) render();
 }
 
 function showError(msg) {
