@@ -16,7 +16,7 @@
   --yellow-bg: #fefce8; --yellow-border: #fde68a;
   --green: #16a34a; --green-bg: #f0fdf4; --green-border: #bbf7d0;
   --radius: 8px;
-  --cols: 1fr 38px 72px 72px 60px 72px 76px 60px 76px;
+  --cols: 1fr 38px 72px 72px 60px 72px 76px 60px 72px 80px;
 }
 body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; padding: 2rem 1rem; }
 .container { max-width: 1060px; margin: 0 auto; }
@@ -101,7 +101,7 @@ button.primary:hover { background: #1d4ed8; }
 .tbl-header {
   display: grid; grid-template-columns: var(--cols); gap: 6px;
   padding: 6px 16px; background: var(--surface-2); border-bottom: 0.5px solid var(--border);
-  font-size: 10px; color: var(--text-muted); font-weight: 600; letter-spacing: .04em; min-width: 800px;
+  font-size: 10px; color: var(--text-muted); font-weight: 600; letter-spacing: .04em; min-width: 900px;
 }
 .th-r { text-align: right; }
 
@@ -116,7 +116,7 @@ button.primary:hover { background: #1d4ed8; }
 
 .brow {
   display: grid; grid-template-columns: var(--cols); align-items: center;
-  gap: 6px; padding: 5px 16px; border-bottom: 0.5px solid var(--border); min-width: 800px;
+  gap: 6px; padding: 5px 16px; border-bottom: 0.5px solid var(--border); min-width: 900px;
 }
 .brow:last-child { border-bottom: none; }
 .brow:hover { background: #fafaf9; }
@@ -136,6 +136,13 @@ button.primary:hover { background: #1d4ed8; }
 .c-rate input:focus { outline: 1.5px solid var(--accent); border-color: var(--accent); }
 .c-amt { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
 .c-disc { font-size: 12px; text-align: right; color: var(--red); font-variant-numeric: tabular-nums; }
+.c-spdisc input {
+  width: 100%; font-family: inherit; font-size: 12px; font-weight: 500;
+  text-align: right; padding: 2px 5px;
+  border: 0.5px solid var(--border-strong); border-radius: 4px;
+  background: #fff; color: var(--red);
+}
+.c-spdisc input:focus { outline: 1.5px solid var(--accent); border-color: var(--accent); }
 .c-total { font-size: 12px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 .badge { font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 600; white-space: nowrap; }
 .b-sib { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
@@ -162,7 +169,7 @@ button.primary:hover { background: #1d4ed8; }
   .brow.sib { background: #fff0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .brow.twin { background: #fefce8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .grade-block { page-break-inside: avoid; }
-  .c-rate input { border: none; background: transparent; pointer-events: none; }
+  .c-rate input, .c-spdisc input { border: none; background: transparent; pointer-events: none; }
 }
 </style>
 </head>
@@ -280,12 +287,18 @@ button.primary:hover { background: #1d4ed8; }
 <script>
 const GRADE_ORDER = ['小1','小2','小3','小4','小5','小6','中1','中2','中3','高1','高2','高3'];
 const RATES_KEY = 'billing_rates_v1';
+const SPDISC_KEY = 'billing_spdisc_v1';
 
-let students = null;    // id -> {id, name, grade, sibling}
+let students = null;    // id -> {id, name, grade, sibling, created}
 let attendance = null;  // id -> {count, dates}
 let sibTargets = new Set();
-let twinTargets = new Set();
 let copyBuf = '';
+
+// 授業回数が1回以上のときの学年別デフォルト単価
+function defaultRate(grade, count) {
+  if (count <= 0) return 0;
+  return grade.startsWith('小') ? 1500 : 2000; // 中・高は2000
+}
 
 const SHOKEIHI_MONTHS_KEY = 'billing_shokeihi_months_v1';
 
@@ -316,11 +329,21 @@ function onMonthChange() { saveSpecialMonths(); onSettingChange(); }
 function gradeKey(g) { const i = GRADE_ORDER.indexOf(g); return i >= 0 ? i : 99; }
 function fmt(n) { return '¥' + n.toLocaleString('ja-JP'); }
 function getRates() { return JSON.parse(localStorage.getItem(RATES_KEY) || '{}'); }
-function saveRate(id, v) {
+function saveRate(id, v) { const r = getRates(); r[id] = v; localStorage.setItem(RATES_KEY, JSON.stringify(r)); }
+function deleteRate(id) { const r = getRates(); delete r[id]; localStorage.setItem(RATES_KEY, JSON.stringify(r)); }
+// 単価：手動設定があればそれ、なければ学年別デフォルト
+function effectiveRate(s, count) {
   const r = getRates();
-  if (v > 0) r[id] = v; else delete r[id];
-  localStorage.setItem(RATES_KEY, JSON.stringify(r));
+  return (s.id in r) ? r[s.id] : defaultRate(s.grade, count);
 }
+
+function getSpDiscs() { return JSON.parse(localStorage.getItem(SPDISC_KEY) || '{}'); }
+function saveSpDisc(id, v) {
+  const r = getSpDiscs();
+  if (v > 0) r[id] = v; else delete r[id];
+  localStorage.setItem(SPDISC_KEY, JSON.stringify(r));
+}
+function getSpDisc(id) { return getSpDiscs()[id] || 0; }
 
 // ── CSV parser (handles quoted fields w/ embedded newlines) ──
 function parseCSVFull(text) {
@@ -361,17 +384,18 @@ function parseStudent(text) {
   const h = rows[0];
   const iId = h.indexOf('生徒番号'), iName = h.indexOf('名前'),
         iGrade = h.indexOf('現在の学年'), iStatus = h.indexOf('ステータス'),
-        iSib = h.indexOf('兄弟姉妹');
+        iSib = h.indexOf('兄弟姉妹'), iCreated = h.indexOf('作成日時');
   if (iId < 0 || iName < 0 || iGrade < 0) return null;
   const result = {};
   for (let i = 1; i < rows.length; i++) {
     const c = rows[i];
     const id = c[iId]||'', name = c[iName]||'', grade = c[iGrade]||'';
-    const status = iStatus >= 0 ? c[iStatus]||'' : '在籍';
-    const sib    = iSib    >= 0 ? c[iSib]   ||'' : '';
+    const status  = iStatus  >= 0 ? c[iStatus] ||'' : '在籍';
+    const sib     = iSib     >= 0 ? c[iSib]    ||'' : '';
+    const created = iCreated >= 0 ? c[iCreated]||'' : '';
     if (!id || !name || !grade) continue;
     if (status !== '在籍') continue;
-    result[id] = { id, name, grade, sibling: sib };
+    result[id] = { id, name, grade, sibling: sib, created };
   }
   return Object.keys(result).length ? result : null;
 }
@@ -400,10 +424,12 @@ function parseAttendance(text) {
 }
 
 // ── sibling detection ──
+// 学年が低いほうに兄弟割引を適用。
+// 同学年（双子）の場合は契約日時（作成日時）が遅いほうに適用。
 function detectSiblings(sts) {
   const nameMap = {};
   Object.values(sts).forEach(s => { nameMap[s.name] = s; });
-  const targets = new Set(), twins = new Set(), seen = new Set();
+  const targets = new Set(), seen = new Set();
   Object.values(sts).forEach(s => {
     if (!s.sibling || seen.has(s.id)) return;
     const sib = nameMap[s.sibling];
@@ -412,9 +438,13 @@ function detectSiblings(sts) {
     const a = gradeKey(s.grade), b = gradeKey(sib.grade);
     if (a < b)      targets.add(s.id);
     else if (b < a) targets.add(sib.id);
-    else { twins.add(s.id); twins.add(sib.id); }
+    else {
+      // 同学年：契約日時（作成日時）が遅いほうに適用
+      const later = (s.created || '') >= (sib.created || '') ? s : sib;
+      targets.add(later.id);
+    }
   });
-  return { targets, twins };
+  return { targets };
 }
 
 // ── fee getters ──
@@ -434,15 +464,15 @@ function calcBilling(s, rate, count) {
   const kyoshitsu = getKyoshitsu();
   const sysf = getSysFee();
   const disc = sibTargets.has(s.id) ? getDiscount() : 0;
-  const total = jugyoryo + shokeihi + kyoshitsu + sysf - disc;
-  return { jugyoryo, shokeihi, kyoshitsu, sysf, disc, total };
+  const spdisc = getSpDisc(s.id);
+  const total = jugyoryo + shokeihi + kyoshitsu + sysf - disc - spdisc;
+  return { jugyoryo, shokeihi, kyoshitsu, sysf, disc, spdisc, total };
 }
 
 // ── render ──
 function render() {
   if (!students || !attendance) return;
 
-  const rates = getRates();
   const byGrade = {};
   Object.values(students).forEach(s => {
     if (!byGrade[s.grade]) byGrade[s.grade] = [];
@@ -454,7 +484,7 @@ function render() {
     <div>氏名</div><div class="th-r">回数</div><div class="th-r">単価</div>
     <div class="th-r">授業料</div><div class="th-r">諸経費</div>
     <div class="th-r">教室利用料</div><div class="th-r">システム管理費</div>
-    <div class="th-r">兄弟割引</div><div class="th-r">合計</div>
+    <div class="th-r">兄弟割引</div><div class="th-r">特別割引</div><div class="th-r">合計</div>
   </div>`;
 
   let totStudents = 0, totLesson = 0, totFixed = 0, totDisc = 0, totAll = 0;
@@ -468,20 +498,17 @@ function render() {
     list.forEach(s => {
       totStudents++;
       const att   = attendance[s.id] || { count: 0, dates: [] };
-      const rate  = rates[s.id] || 0;
+      const rate  = effectiveRate(s, att.count);
       const b     = calcBilling(s, rate, att.count);
       const isSib = sibTargets.has(s.id);
-      const isTwin = twinTargets.has(s.id);
-      const rowCls = isTwin ? 'brow twin' : isSib ? 'brow sib' : 'brow';
+      const rowCls = isSib ? 'brow sib' : 'brow';
 
       totLesson += b.jugyoryo;
       totFixed  += b.shokeihi + b.kyoshitsu + b.sysf;
-      totDisc   += b.disc;
+      totDisc   += b.disc + b.spdisc;
       totAll    += b.total;
 
-      let badge = '';
-      if (isSib)  badge = `<span class="badge b-sib">兄弟割引</span>`;
-      if (isTwin) badge = `<span class="badge b-twin">要確認</span>`;
+      const badge = isSib ? `<span class="badge b-sib">兄弟割引</span>` : '';
 
       html += `<div class="${rowCls}" data-id="${s.id}">
         <div class="c-name">${s.name}${badge}</div>
@@ -492,10 +519,11 @@ function render() {
         <div class="c-amt" data-col="kyoshitsu">${fmt(b.kyoshitsu)}</div>
         <div class="c-amt" data-col="sysf">${fmt(b.sysf)}</div>
         <div class="c-disc" data-col="disc">${b.disc ? '-'+fmt(b.disc) : '—'}</div>
+        <div class="c-spdisc"><input type="number" min="0" step="100" value="${b.spdisc||''}" placeholder="0" data-id="${s.id}" onchange="onSpDiscChange(this)"></div>
         <div class="c-total" data-col="total">${fmt(b.total)}</div>
       </div>`;
 
-      copyLines += `${s.name}\t${att.count}回\t¥${rate.toLocaleString()}/回\t${fmt(b.jugyoryo)}\t${fmt(b.shokeihi)}\t${fmt(b.kyoshitsu)}\t${fmt(b.sysf)}\t${b.disc ? '-'+fmt(b.disc) : '—'}\t${fmt(b.total)}\n`;
+      copyLines += `${s.name}\t${att.count}回\t¥${rate.toLocaleString()}/回\t${fmt(b.jugyoryo)}\t${fmt(b.shokeihi)}\t${fmt(b.kyoshitsu)}\t${fmt(b.sysf)}\t${b.disc ? '-'+fmt(b.disc) : '—'}\t${b.spdisc ? '-'+fmt(b.spdisc) : '—'}\t${fmt(b.total)}\n`;
     });
 
     html += `</div>`;
@@ -518,36 +546,39 @@ function updateSummary(s, l, f, d, t) {
   document.getElementById('st-total').textContent    = fmt(t);
 }
 
-// ── rate change (inline update without full re-render) ──
-function onRateChange(input) {
-  const id   = input.dataset.id;
-  const rate = parseInt(input.value, 10) || 0;
-  saveRate(id, rate);
-
+// ── 行の金額を再計算して表示（全体再描画なし） ──
+function refreshRow(row, id) {
   const s   = students[id];
   const att = (attendance && attendance[id]) || { count: 0 };
-  const b   = calcBilling(s, rate, att.count);
-
-  const row = input.closest('.brow');
+  const b   = calcBilling(s, effectiveRate(s, att.count), att.count);
   row.querySelector('[data-col="jugyoryo"]').textContent = fmt(b.jugyoryo);
-  row.querySelector('[data-col="shokeihi"]').textContent = fmt(b.shokeihi);
-  row.querySelector('[data-col="kyoshitsu"]').textContent = fmt(b.kyoshitsu);
-  row.querySelector('[data-col="sysf"]').textContent = fmt(b.sysf);
-  row.querySelector('[data-col="disc"]').textContent = b.disc ? '-'+fmt(b.disc) : '—';
   row.querySelector('[data-col="total"]').textContent = fmt(b.total);
+}
 
+// 単価変更：空欄なら学年別デフォルトに戻す
+function onRateChange(input) {
+  const id  = input.dataset.id;
+  const raw = input.value.trim();
+  if (raw === '') deleteRate(id); else saveRate(id, parseInt(raw, 10) || 0);
+  refreshRow(input.closest('.brow'), id);
+  recalcSummary();
+}
+
+// 特別割引変更
+function onSpDiscChange(input) {
+  const id = input.dataset.id;
+  saveSpDisc(id, parseInt(input.value, 10) || 0);
+  refreshRow(input.closest('.brow'), id);
   recalcSummary();
 }
 
 function recalcSummary() {
-  const rates = getRates();
   let s = 0, l = 0, f = 0, d = 0, t = 0;
   Object.values(students).forEach(st => {
     s++;
     const att = (attendance && attendance[st.id]) || { count: 0 };
-    const rate = rates[st.id] || 0;
-    const b = calcBilling(st, rate, att.count);
-    l += b.jugyoryo; f += b.shokeihi + b.kyoshitsu + b.sysf; d += b.disc; t += b.total;
+    const b = calcBilling(st, effectiveRate(st, att.count), att.count);
+    l += b.jugyoryo; f += b.shokeihi + b.kyoshitsu + b.sysf; d += b.disc + b.spdisc; t += b.total;
   });
   updateSummary(s, l, f, d, t);
 }
@@ -584,8 +615,7 @@ function handleFile(file, zone) {
       const data = parseStudent(text);
       if (!data) { showError('生徒情報CSVのヘッダーが認識できません。'); return; }
       students = data;
-      const { targets, twins } = detectSiblings(students);
-      sibTargets = targets; twinTargets = twins;
+      sibTargets = detectSiblings(students).targets;
       setDropLoaded('student', file.name, Object.keys(data).length + '名を読み込みました');
     } else {
       const data = parseAttendance(text);
@@ -609,7 +639,7 @@ function setDropLoaded(zone, name, sub) {
 }
 
 function clearFile(zone) {
-  if (zone === 'student')     { students = null; sibTargets = new Set(); twinTargets = new Set(); }
+  if (zone === 'student')     { students = null; sibTargets = new Set(); }
   if (zone === 'attendance')  { attendance = null; }
   document.getElementById('dz-' + zone).classList.remove('loaded');
   document.getElementById('txt-' + zone).innerHTML = `ここにドロップ<br><span class="dz-link">またはクリックして選択</span>`;
