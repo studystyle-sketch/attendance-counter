@@ -28,8 +28,9 @@ header p { font-size: 13px; color: var(--text-secondary); }
 .settings-bar {
   background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px;
   padding: 1rem 1.5rem; margin-bottom: 1.25rem;
-  display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+  display: flex; flex-direction: column; gap: 12px;
 }
+.settings-row { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
 .sg { display: flex; align-items: center; gap: 6px; }
 .sg label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
 .sg select, .sg input[type="number"] {
@@ -41,6 +42,7 @@ header p { font-size: 13px; color: var(--text-secondary); }
 .shokeihi-val { font-size: 13px; font-weight: 600; color: var(--accent-text); padding: 3px 8px; background: var(--accent-bg); border-radius: 4px; }
 .hint { font-size: 11px; color: var(--text-muted); }
 .vsep { width: 1px; height: 22px; background: var(--border); }
+.hsep { width: 100%; height: 1px; background: var(--border); }
 .month-checks { display: flex; gap: 3px; flex-wrap: wrap; }
 .mc { display: none; }
 .ml {
@@ -172,61 +174,71 @@ button.primary:hover { background: #1d4ed8; }
   </header>
 
   <div class="settings-bar">
-    <div class="sg">
-      <label>対象月</label>
-      <select id="target-month" onchange="onSettingChange()">
-        <option value="1">1月</option><option value="2">2月</option>
-        <option value="3">3月</option><option value="4">4月</option>
-        <option value="5">5月</option><option value="6">6月</option>
-        <option value="7">7月</option><option value="8">8月</option>
-        <option value="9">9月</option><option value="10">10月</option>
-        <option value="11">11月</option><option value="12">12月</option>
-      </select>
-    </div>
-    <div class="sg">
-      <label>諸経費 通常</label>
-      <input type="number" id="fee-shokeihi-normal" value="2000" oninput="onSettingChange()">
-      <span class="hint">円</span>
-    </div>
-    <div class="sg">
-      <label>特別期間</label>
-      <input type="number" id="fee-shokeihi-special" value="3000" oninput="onSettingChange()">
-      <span class="hint">円</span>
-    </div>
-    <div class="sg">
-      <label>特別対象月</label>
-      <div class="month-checks" id="month-checks">
-        <input class="mc" type="checkbox" id="mc1"  value="1"  onchange="onMonthChange()"><label class="ml" for="mc1">1</label>
-        <input class="mc" type="checkbox" id="mc2"  value="2"  onchange="onMonthChange()"><label class="ml" for="mc2">2</label>
-        <input class="mc" type="checkbox" id="mc3"  value="3"  onchange="onMonthChange()"><label class="ml" for="mc3">3</label>
-        <input class="mc" type="checkbox" id="mc4"  value="4"  onchange="onMonthChange()"><label class="ml" for="mc4">4</label>
-        <input class="mc" type="checkbox" id="mc5"  value="5"  onchange="onMonthChange()"><label class="ml" for="mc5">5</label>
-        <input class="mc" type="checkbox" id="mc6"  value="6"  onchange="onMonthChange()"><label class="ml" for="mc6">6</label>
-        <input class="mc" type="checkbox" id="mc7"  value="7"  onchange="onMonthChange()"><label class="ml" for="mc7">7</label>
-        <input class="mc" type="checkbox" id="mc8"  value="8"  onchange="onMonthChange()"><label class="ml" for="mc8">8</label>
-        <input class="mc" type="checkbox" id="mc9"  value="9"  onchange="onMonthChange()"><label class="ml" for="mc9">9</label>
-        <input class="mc" type="checkbox" id="mc10" value="10" onchange="onMonthChange()"><label class="ml" for="mc10">10</label>
-        <input class="mc" type="checkbox" id="mc11" value="11" onchange="onMonthChange()"><label class="ml" for="mc11">11</label>
-        <input class="mc" type="checkbox" id="mc12" value="12" onchange="onMonthChange()"><label class="ml" for="mc12">12</label>
+    <!-- 1行目：月・費用 -->
+    <div class="settings-row">
+      <div class="sg">
+        <label>対象月</label>
+        <select id="target-month" onchange="onSettingChange()">
+          <option value="1">1月</option><option value="2">2月</option>
+          <option value="3">3月</option><option value="4">4月</option>
+          <option value="5">5月</option><option value="6">6月</option>
+          <option value="7">7月</option><option value="8">8月</option>
+          <option value="9">9月</option><option value="10">10月</option>
+          <option value="11">11月</option><option value="12">12月</option>
+        </select>
       </div>
-      <span class="shokeihi-val" id="shokeihi-val">¥2,000</span>
+      <div class="vsep"></div>
+      <div class="sg">
+        <label>諸経費（通常）</label>
+        <input type="number" id="fee-shokeihi-normal" value="2000" oninput="onSettingChange()">
+        <span class="hint">円</span>
+      </div>
+      <div class="sg">
+        <label>諸経費（特別期間）</label>
+        <input type="number" id="fee-shokeihi-special" value="3000" oninput="onSettingChange()">
+        <span class="hint">円</span>
+      </div>
+      <div class="vsep"></div>
+      <div class="sg">
+        <label>教室利用料</label>
+        <input type="number" id="fee-kyoshitsu" value="3000" oninput="onSettingChange()">
+        <span class="hint">円</span>
+      </div>
+      <div class="sg">
+        <label>システム管理費</label>
+        <input type="number" id="fee-system" value="500" oninput="onSettingChange()">
+        <span class="hint">円</span>
+      </div>
+      <div class="vsep"></div>
+      <div class="sg">
+        <label>兄弟割引</label>
+        <input type="number" id="discount-amt" value="3000" oninput="onSettingChange()">
+        <span class="hint">円</span>
+      </div>
     </div>
-    <div class="vsep"></div>
-    <div class="sg">
-      <label>教室利用料</label>
-      <input type="number" id="fee-kyoshitsu" value="3000" oninput="onSettingChange()">
-      <span class="hint">円</span>
-    </div>
-    <div class="sg">
-      <label>システム管理費</label>
-      <input type="number" id="fee-system" value="500" oninput="onSettingChange()">
-      <span class="hint">円</span>
-    </div>
-    <div class="vsep"></div>
-    <div class="sg">
-      <label>兄弟割引</label>
-      <input type="number" id="discount-amt" value="0" oninput="onSettingChange()">
-      <span class="hint">円</span>
+    <!-- 区切り -->
+    <div class="hsep"></div>
+    <!-- 2行目：特別期間対象月 -->
+    <div class="settings-row">
+      <div class="sg">
+        <label>諸経費 特別期間の月</label>
+        <div class="month-checks" id="month-checks">
+          <input class="mc" type="checkbox" id="mc1"  value="1"  onchange="onMonthChange()"><label class="ml" for="mc1">1</label>
+          <input class="mc" type="checkbox" id="mc2"  value="2"  onchange="onMonthChange()"><label class="ml" for="mc2">2</label>
+          <input class="mc" type="checkbox" id="mc3"  value="3"  onchange="onMonthChange()"><label class="ml" for="mc3">3</label>
+          <input class="mc" type="checkbox" id="mc4"  value="4"  onchange="onMonthChange()"><label class="ml" for="mc4">4</label>
+          <input class="mc" type="checkbox" id="mc5"  value="5"  onchange="onMonthChange()"><label class="ml" for="mc5">5</label>
+          <input class="mc" type="checkbox" id="mc6"  value="6"  onchange="onMonthChange()"><label class="ml" for="mc6">6</label>
+          <input class="mc" type="checkbox" id="mc7"  value="7"  onchange="onMonthChange()"><label class="ml" for="mc7">7</label>
+          <input class="mc" type="checkbox" id="mc8"  value="8"  onchange="onMonthChange()"><label class="ml" for="mc8">8</label>
+          <input class="mc" type="checkbox" id="mc9"  value="9"  onchange="onMonthChange()"><label class="ml" for="mc9">9</label>
+          <input class="mc" type="checkbox" id="mc10" value="10" onchange="onMonthChange()"><label class="ml" for="mc10">10</label>
+          <input class="mc" type="checkbox" id="mc11" value="11" onchange="onMonthChange()"><label class="ml" for="mc11">11</label>
+          <input class="mc" type="checkbox" id="mc12" value="12" onchange="onMonthChange()"><label class="ml" for="mc12">12</label>
+        </div>
+        <span class="hint">→ 今月の諸経費：</span>
+        <span class="shokeihi-val" id="shokeihi-val">¥2,000</span>
+      </div>
     </div>
   </div>
 
