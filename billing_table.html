@@ -41,6 +41,16 @@ header p { font-size: 13px; color: var(--text-secondary); }
 .shokeihi-val { font-size: 13px; font-weight: 600; color: var(--accent-text); padding: 3px 8px; background: var(--accent-bg); border-radius: 4px; }
 .hint { font-size: 11px; color: var(--text-muted); }
 .vsep { width: 1px; height: 22px; background: var(--border); }
+.month-checks { display: flex; gap: 3px; flex-wrap: wrap; }
+.mc { display: none; }
+.ml {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 22px; border-radius: 4px;
+  border: 0.5px solid var(--border-strong); font-size: 11px;
+  cursor: pointer; background: var(--surface); color: var(--text-secondary);
+  transition: background .1s, color .1s, border-color .1s; user-select: none;
+}
+.mc:checked + .ml { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* Upload */
 .upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
@@ -176,9 +186,32 @@ button.primary:hover { background: #1d4ed8; }
       </select>
     </div>
     <div class="sg">
-      <label>諸経費</label>
+      <label>諸経費 通常</label>
+      <input type="number" id="fee-shokeihi-normal" value="2000" oninput="onSettingChange()">
+      <span class="hint">円</span>
+    </div>
+    <div class="sg">
+      <label>特別期間</label>
+      <input type="number" id="fee-shokeihi-special" value="3000" oninput="onSettingChange()">
+      <span class="hint">円</span>
+    </div>
+    <div class="sg">
+      <label>特別対象月</label>
+      <div class="month-checks" id="month-checks">
+        <input class="mc" type="checkbox" id="mc1"  value="1"  onchange="onMonthChange()"><label class="ml" for="mc1">1</label>
+        <input class="mc" type="checkbox" id="mc2"  value="2"  onchange="onMonthChange()"><label class="ml" for="mc2">2</label>
+        <input class="mc" type="checkbox" id="mc3"  value="3"  onchange="onMonthChange()"><label class="ml" for="mc3">3</label>
+        <input class="mc" type="checkbox" id="mc4"  value="4"  onchange="onMonthChange()"><label class="ml" for="mc4">4</label>
+        <input class="mc" type="checkbox" id="mc5"  value="5"  onchange="onMonthChange()"><label class="ml" for="mc5">5</label>
+        <input class="mc" type="checkbox" id="mc6"  value="6"  onchange="onMonthChange()"><label class="ml" for="mc6">6</label>
+        <input class="mc" type="checkbox" id="mc7"  value="7"  onchange="onMonthChange()"><label class="ml" for="mc7">7</label>
+        <input class="mc" type="checkbox" id="mc8"  value="8"  onchange="onMonthChange()"><label class="ml" for="mc8">8</label>
+        <input class="mc" type="checkbox" id="mc9"  value="9"  onchange="onMonthChange()"><label class="ml" for="mc9">9</label>
+        <input class="mc" type="checkbox" id="mc10" value="10" onchange="onMonthChange()"><label class="ml" for="mc10">10</label>
+        <input class="mc" type="checkbox" id="mc11" value="11" onchange="onMonthChange()"><label class="ml" for="mc11">11</label>
+        <input class="mc" type="checkbox" id="mc12" value="12" onchange="onMonthChange()"><label class="ml" for="mc12">12</label>
+      </div>
       <span class="shokeihi-val" id="shokeihi-val">¥2,000</span>
-      <span class="hint">（12〜2月は¥3,000）</span>
     </div>
     <div class="vsep"></div>
     <div class="sg">
@@ -246,8 +279,27 @@ let sibTargets = new Set();
 let twinTargets = new Set();
 let copyBuf = '';
 
-// ── init month ──
+const SHOKEIHI_MONTHS_KEY = 'billing_shokeihi_months_v1';
+
+function getSpecialMonths() {
+  return [...document.querySelectorAll('.mc:checked')].map(c => parseInt(c.value, 10));
+}
+function saveSpecialMonths() {
+  localStorage.setItem(SHOKEIHI_MONTHS_KEY, JSON.stringify(getSpecialMonths()));
+}
+function loadSpecialMonths() {
+  const saved = localStorage.getItem(SHOKEIHI_MONTHS_KEY);
+  const months = saved ? JSON.parse(saved) : [12, 1, 2];
+  months.forEach(m => {
+    const cb = document.getElementById('mc' + m);
+    if (cb) cb.checked = true;
+  });
+}
+function onMonthChange() { saveSpecialMonths(); onSettingChange(); }
+
+// ── init ──
 (function() {
+  loadSpecialMonths();
   const m = new Date().getMonth() + 1;
   document.getElementById('target-month').value = m;
   updateShokeihi();
@@ -359,7 +411,11 @@ function detectSiblings(sts) {
 
 // ── fee getters ──
 function getMonth()    { return parseInt(document.getElementById('target-month').value, 10); }
-function getShokeihi() { return [12,1,2].includes(getMonth()) ? 3000 : 2000; }
+function getShokeihi() {
+  const normal  = parseInt(document.getElementById('fee-shokeihi-normal').value,  10) || 0;
+  const special = parseInt(document.getElementById('fee-shokeihi-special').value, 10) || 0;
+  return getSpecialMonths().includes(getMonth()) ? special : normal;
+}
 function getKyoshitsu(){ return parseInt(document.getElementById('fee-kyoshitsu').value, 10) || 0; }
 function getSysFee()   { return parseInt(document.getElementById('fee-system').value,    10) || 0; }
 function getDiscount() { return parseInt(document.getElementById('discount-amt').value,  10) || 0; }
@@ -494,7 +550,12 @@ function onSettingChange() {
 }
 
 function updateShokeihi() {
-  document.getElementById('shokeihi-val').textContent = fmt(getShokeihi());
+  const v = getShokeihi();
+  const el = document.getElementById('shokeihi-val');
+  el.textContent = fmt(v);
+  const isSpecial = getSpecialMonths().includes(getMonth());
+  el.style.background = isSpecial ? '#fef2f2' : 'var(--accent-bg)';
+  el.style.color = isSpecial ? 'var(--red)' : 'var(--accent-text)';
 }
 
 // ── file handling ──
