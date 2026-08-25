@@ -71,6 +71,20 @@ header p { font-size: 13px; color: var(--text-secondary); }
 .dz-clear { position: absolute; top: 8px; right: 8px; font-size: 11px; color: var(--text-muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; border: 0.5px solid var(--border); background: var(--surface); }
 .dz-clear:hover { color: var(--red); border-color: var(--red-border); }
 input[type="file"] { display: none; }
+.seat-source {
+  border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem;
+  background: var(--surface); display: flex; flex-direction: column; justify-content: center;
+  text-align: center; min-height: 110px;
+}
+.seat-source.loaded { border-color: var(--green-border); background: var(--green-bg); }
+.seat-source.error { border-color: var(--red-border); background: var(--red-bg); }
+.source-actions { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
+.auth-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 1.25rem; font-size: 12px; color: var(--text-secondary);
+}
+.auth-bar[hidden] { display: none; }
 
 /* Controls */
 #controls { display: none; align-items: center; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
@@ -160,7 +174,7 @@ button.primary:hover { background: #1d4ed8; }
 @media print {
   @page { size: landscape; margin: 1cm; }
   body { background: #fff; padding: 0; }
-  header p, .settings-bar, .upload-row, #controls, #summary, #error-box, #toast { display: none !important; }
+  header p, .settings-bar, .upload-row, .auth-bar, #controls, #summary, #error-box, #toast { display: none !important; }
   header { margin-bottom: 0.5rem; }
   #result { display: block !important; border: none; border-radius: 0; overflow: visible; }
   .grade-head { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -177,8 +191,16 @@ button.primary:hover { background: #1d4ed8; }
 <div class="container">
   <header>
     <h1>請求書作成ツール</h1>
-    <p>生徒情報CSVと出席CSVを読み込んで請求一覧を自動生成します</p>
+    <p>生徒情報CSVと座席管理の最新データから請求一覧を自動生成します</p>
   </header>
+
+  <div class="auth-bar" id="auth-bar">
+    <span id="auth-status">座席管理への接続を確認中…</span>
+    <button id="btn-login" type="button" style="display:none">
+      <i class="ti ti-brand-google"></i> Googleでログイン
+    </button>
+    <button id="btn-logout" type="button" style="display:none">ログアウト</button>
+  </div>
 
   <div class="settings-bar">
     <!-- 1行目：月・費用 -->
@@ -251,18 +273,19 @@ button.primary:hover { background: #1d4ed8; }
 
   <div class="upload-row">
     <div class="drop-zone" id="dz-student" onclick="document.getElementById('fi-student').click()">
-      <div class="dz-tag">① 生徒情報CSV</div>
+      <div class="dz-tag">生徒情報CSV</div>
       <div class="dz-body" id="txt-student">ここにドロップ<br><span class="dz-link">またはクリックして選択</span></div>
       <span class="dz-clear" id="clr-student" style="display:none" onclick="event.stopPropagation();clearFile('student')">×</span>
     </div>
-    <div class="drop-zone" id="dz-attendance" onclick="document.getElementById('fi-attendance').click()">
-      <div class="dz-tag">② 出席CSV</div>
-      <div class="dz-body" id="txt-attendance">ここにドロップ<br><span class="dz-link">またはクリックして選択</span></div>
-      <span class="dz-clear" id="clr-attendance" style="display:none" onclick="event.stopPropagation();clearFile('attendance')">×</span>
+    <div class="seat-source" id="seat-source">
+      <div class="dz-tag">座席管理データ</div>
+      <div class="dz-body" id="seat-status">接続確認中…</div>
+      <div class="source-actions">
+        <button type="button" id="btn-reload-seats"><i class="ti ti-refresh"></i> 最新に更新</button>
+      </div>
     </div>
   </div>
   <input type="file" id="fi-student" accept=".csv,.tsv,.txt" onchange="handleFile(this.files[0],'student')">
-  <input type="file" id="fi-attendance" accept=".csv,.tsv,.txt" onchange="handleFile(this.files[0],'attendance')">
 
   <div id="error-box"></div>
 
@@ -285,13 +308,20 @@ button.primary:hover { background: #1d4ed8; }
 </div>
 <div id="toast">コピーしました</div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+const SUPABASE_URL = "https://zobpzwathuoidoywesnr.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_rwZWk8kvQNipYAz1NYS6Bw_Zbp8z-yg";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const GRADE_ORDER = ['小1','小2','小3','小4','小5','小6','中1','中2','中3','高1','高2','高3'];
 const RATES_KEY = 'billing_rates_v1';
 const SPDISC_KEY = 'billing_spdisc_v1';
 
 let students = null;    // id -> {id, name, grade, sibling, created}
 let attendance = null;  // id -> {count, dates}
+let sharedLessons = [];
+let sharedUpdatedAt = null;
 let sibTargets = new Set();
 let copyBuf = '';
 
@@ -348,6 +378,7 @@ function getSpDisc(id) { return getSpDiscs()[id] || 0; }
 
 // ── CSV parser (handles quoted fields w/ embedded newlines) ──
 function parseCSVFull(text) {
+  text = text.replace(/^\uFEFF/, '');
   const rows = []; let row = [], field = '', inQ = false, i = 0;
   while (i < text.length) {
     const c = text[i];
@@ -586,6 +617,7 @@ function recalcSummary() {
 
 function onSettingChange() {
   updateShokeihi();
+  if (sharedLessons.length) rebuildAttendanceForMonth();
   if (students && attendance) render();
 }
 
@@ -610,20 +642,12 @@ function handleFile(file, zone) {
     const headers = firstLine.split(sep).map(h => h.trim().replace(/^"|"$/g,''));
     const detected = detectType(headers);
 
-    const target = detected === 'student' ? 'student' : detected === 'attendance' ? 'attendance' : zone;
-
-    if (target === 'student') {
-      const data = parseStudent(text);
-      if (!data) { showError('生徒情報CSVのヘッダーが認識できません。'); return; }
-      students = data;
-      sibTargets = detectSiblings(students).targets;
-      setDropLoaded('student', file.name, Object.keys(data).length + '名を読み込みました');
-    } else {
-      const data = parseAttendance(text);
-      if (!data) { showError('出席CSVのヘッダーが認識できません。生徒番号・日付・欠席 の列が必要です。'); return; }
-      attendance = data;
-      setDropLoaded('attendance', file.name, Object.keys(data).length + '名分の出席データを読み込みました');
-    }
+    if (detected !== 'student' && zone !== 'student') return;
+    const data = parseStudent(text);
+    if (!data) { showError('生徒情報CSVのヘッダーが認識できません。'); return; }
+    students = data;
+    sibTargets = detectSiblings(students).targets;
+    setDropLoaded('student', file.name, Object.keys(data).length + '名を読み込みました');
 
     if (students && attendance) render();
   };
@@ -641,7 +665,6 @@ function setDropLoaded(zone, name, sub) {
 
 function clearFile(zone) {
   if (zone === 'student')     { students = null; sibTargets = new Set(); }
-  if (zone === 'attendance')  { attendance = null; }
   document.getElementById('dz-' + zone).classList.remove('loaded');
   document.getElementById('txt-' + zone).innerHTML = `ここにドロップ<br><span class="dz-link">またはクリックして選択</span>`;
   document.getElementById('clr-' + zone).style.display = 'none';
@@ -654,7 +677,7 @@ function clearFile(zone) {
 }
 
 function resetAll() {
-  clearFile('student'); clearFile('attendance');
+  clearFile('student');
   document.getElementById('result').innerHTML = '';
   showError(''); copyBuf = '';
 }
@@ -671,6 +694,116 @@ function showError(msg) {
     ? `<div class="error-msg"><i class="ti ti-alert-circle"></i> ${msg}</div>` : '';
 }
 
+function setSeatStatus(state, main, sub = '') {
+  const box = document.getElementById('seat-source');
+  box.classList.toggle('loaded', state === 'loaded');
+  box.classList.toggle('error', state === 'error');
+  document.getElementById('seat-status').innerHTML =
+    `<div class="dz-loaded-name">${main}</div>` +
+    (sub ? `<div class="dz-loaded-sub">${sub}</div>` : '');
+}
+
+function hideBillingResults() {
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('controls').style.display = 'none';
+  document.getElementById('summary').style.display = 'none';
+}
+
+function rebuildAttendanceForMonth() {
+  const month = getMonth();
+  const years = sharedLessons
+    .filter(l => Number(l.m) === month && Number.isFinite(Number(l.y)))
+    .map(l => Number(l.y));
+
+  if (!years.length) {
+    attendance = null;
+    hideBillingResults();
+    setSeatStatus('error', `${month}月の座席データがありません`, '座席管理で対象月のCSVを取り込んでください');
+    return;
+  }
+
+  const year = Math.max(...years);
+  const target = sharedLessons.filter(l => Number(l.y) === year && Number(l.m) === month);
+  const missingIds = target.filter(l => !String(l.studentId || '').trim()).length;
+  if (missingIds) {
+    attendance = null;
+    hideBillingResults();
+    setSeatStatus('error', '生徒番号がない旧形式のデータです', '座席管理で最新の座席CSVを再取込してください');
+    return;
+  }
+
+  const result = {};
+  let total = 0;
+  target.forEach(l => {
+    const id = String(l.studentId || '').trim();
+    if (!id || id === '0' || l.absent) return;
+    if (!result[id]) result[id] = { count: 0, dates: [] };
+    const date = `${Number(l.m)}/${Number(l.d)}`;
+    result[id].count++;
+    total++;
+    if (!result[id].dates.includes(date)) result[id].dates.push(date);
+  });
+  attendance = result;
+
+  const updated = sharedUpdatedAt
+    ? `最終更新 ${new Date(sharedUpdatedAt).toLocaleString('ja-JP')}`
+    : '';
+  setSeatStatus('loaded', `${year}年${month}月・${total}コマを自動取得`, updated);
+  showError('');
+}
+
+async function loadSeatData() {
+  setSeatStatus('', '座席管理から最新データを取得中…');
+  const { data, error } = await sb
+    .from('shared_schedule')
+    .select('data,updated_at')
+    .eq('id', 'current')
+    .maybeSingle();
+
+  if (error) {
+    attendance = null;
+    hideBillingResults();
+    setSeatStatus('error', '座席データの取得に失敗しました', 'ログインと通信状態を確認してください');
+    return;
+  }
+  sharedLessons = data && data.data && Array.isArray(data.data.lessons) ? data.data.lessons : [];
+  sharedUpdatedAt = data ? data.updated_at : null;
+  if (!sharedLessons.length) {
+    attendance = null;
+    hideBillingResults();
+    setSeatStatus('error', '座席データがまだありません', '座席管理でCSVを取り込んでください');
+    return;
+  }
+  rebuildAttendanceForMonth();
+  if (students && attendance) render();
+}
+
+async function bootSeatConnection() {
+  const authStatus = document.getElementById('auth-status');
+  const login = document.getElementById('btn-login');
+  const logout = document.getElementById('btn-logout');
+  const { data: { session } } = await sb.auth.getSession();
+
+  if (!session) {
+    authStatus.textContent = '座席管理と同じGoogleアカウントでログインしてください';
+    login.style.display = '';
+    setSeatStatus('', 'ログイン後に自動取得します');
+    return;
+  }
+
+  const { data: allowed, error } = await sb.rpc('is_allowed');
+  if (error || !allowed) {
+    authStatus.textContent = 'このアカウントには座席管理の閲覧権限がありません';
+    logout.style.display = '';
+    setSeatStatus('error', '座席データを取得できません');
+    return;
+  }
+
+  authStatus.textContent = '座席管理にログイン済み';
+  logout.style.display = '';
+  await loadSeatData();
+}
+
 function copyText() {
   navigator.clipboard.writeText(copyBuf).then(() => {
     const t = document.getElementById('toast');
@@ -679,15 +812,24 @@ function copyText() {
   });
 }
 
-// ── drag & drop ──
-['student','attendance'].forEach(zone => {
-  const dz = document.getElementById('dz-' + zone);
-  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
-  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
-  dz.addEventListener('drop', e => {
-    e.preventDefault(); dz.classList.remove('over');
-    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0], zone);
-  });
+// ── events / init ──
+const studentDrop = document.getElementById('dz-student');
+studentDrop.addEventListener('dragover', e => { e.preventDefault(); studentDrop.classList.add('over'); });
+studentDrop.addEventListener('dragleave', () => studentDrop.classList.remove('over'));
+studentDrop.addEventListener('drop', e => {
+  e.preventDefault(); studentDrop.classList.remove('over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0], 'student');
+});
+document.getElementById('btn-reload-seats').addEventListener('click', loadSeatData);
+document.getElementById('btn-login').addEventListener('click', () => {
+  sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href.split('#')[0] } });
+});
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  await sb.auth.signOut();
+  location.reload();
+});
+bootSeatConnection().catch(() => {
+  setSeatStatus('error', '座席管理との接続に失敗しました');
 });
 </script>
 </body>
